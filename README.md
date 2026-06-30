@@ -4,7 +4,7 @@
 
 <h1>YouTube View Generator</h1>
 
-<p><strong>Free youtube view generator</strong> that generates views on your YouTube videos</p>
+<p><strong>Free <a href="https://somiibo.com/platforms/youtube-view-bot">youtube view generator</a></strong> that generates views on your YouTube videos</p>
 
 <p>
 <a href="https://somiibo.com/download"><img src="https://img.shields.io/badge/Download-Free-28a745?style=for-the-badge" alt="Download Free"></a>
@@ -23,7 +23,7 @@
 
 <br>
 
-> **[Somiibo](https://somiibo.com/platforms/youtube-view-bot)** Automate social media activity to get real followers, likes, & reposts on TikTok, Instagram, SoundCloud, Twitter & many more sites. Spend less time marketing!
+> Automate social media activity to get real followers, likes, & reposts on TikTok, Instagram, SoundCloud, Twitter & many more sites. Spend less time marketing!
 
 <br>
 
