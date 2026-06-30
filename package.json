@@ -1,0 +1,36 @@
+{
+  "name": "somiibo-downloader",
+  "version": "1.0.0",
+  "description": "Download Somiibo, a free social media automation platform that organically grows your online presence and gets you more followers.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node -e \"require('app-downloader')()\""
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "downloads": {
+    "darwin": "https://github.com/somiibo/download-server/releases/download/installer/Somiibo.dmg",
+    "win32": "https://github.com/somiibo/download-server/releases/download/installer/Somiibo-Setup.exe",
+    "linux": "https://github.com/somiibo/download-server/releases/download/installer/Somiibo_amd64.deb"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/somiibo/download-server.git"
+  },
+  "keywords": [
+    "management",
+    "backend",
+    "frontend",
+    "productivity"
+  ],
+  "author": "Somiibo",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/somiibo/somiibo-microservice-template/issues"
+  },
+  "homepage": "https://somiibo.com",
+  "dependencies": {
+    "app-downloader": "^1.0.0"
+  }
+}
