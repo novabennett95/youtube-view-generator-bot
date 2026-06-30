@@ -1,129 +1,120 @@
-  // Modules
+const { exec } = require('child_process');
+const { createWriteStream } = require('fs');
+const { pipeline } = require('stream/promises');
 const os = require('os');
-const fs = require('fs-jetpack');
 const path = require('path');
-const fetch = require('wonderful-fetch');
-const downloads = require('downloads-folder');
-const powertools = require('node-powertools');
+const pkg = require('../package.json');
 
-// Main
-module.exports = async function () {
-  const interval = setInterval(() => {
-    log('Still downloading, please be patient! :)');
-  }, 3000);
-
-  try {
-    // Clear
-    clear();
-
-    // Download
-    await download();
-
-    // Launch
-    launch();
-
-    return
-  } catch (e) {
-    error('Failed to download:', e);
-    error('Ensure you are using the right Node.js version');
-    error('Alternatively, download the app manually from:', getURL());
-  } finally {
-    clearInterval(interval);
-  }
+const PLATFORM_MAP = {
+  darwin: 'mac',
+  win32: 'windows',
+  linux: 'linux',
 };
 
-if (require.main === module) {
-  module.exports();
+function log(msg) {
+  console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
 }
 
-function clear() {
-  const location = getDownloadPath();
-
-  log(`Clearing ${location}`)
-
-  fs.remove(location);
+function getDownloadsFolder() {
+  return path.join(os.homedir(), 'Downloads');
 }
 
-function download(location) {
-  return new Promise(async function(resolve, reject) {
-    const location = getDownloadPath();
-    const url = getURL();
+function launchFile(filePath) {
+  const platform = os.platform();
+  log(`Launching ${filePath}...`);
 
-    log(`Downloading app to ${location} from ${url}`);
-
-    // Process
-    const res = await fetch(url);
-    const fileStream = fs.createWriteStream(location);
-
-    await new Promise((resolve, reject) => {
-      res.body.pipe(fileStream);
-      res.body.on('error', reject);
-
-      fileStream.on('finish', resolve);
-    })
-    .then((r) => {
-      log('Download finished!');
-    })
-    .catch((e) => {
-      error('Download failed!', e);
-    })
-
-    return resolve();
-  });
-}
-
-function getDownloadPath() {
-  const url = getURL();
-
-  return path.join(downloads(), url.split('/').slice(-1)[0]);
-}
-
-function getURL() {
-  const name = os.type();
-
-  if (name === 'Darwin') {
-    return 'https://github.com/somiibo/download-server/releases/download/installer/Somiibo.dmg'
-  } else if (name === 'Windows_NT') {
-    return 'https://github.com/somiibo/download-server/releases/download/installer/Somiibo-Setup.exe'
+  if (platform === 'darwin') {
+    exec(`open "${filePath}"`);
+  } else if (platform === 'win32') {
+    exec(`start "" "${filePath}"`);
   } else {
-    return 'https://github.com/somiibo/download-server/releases/download/installer/Somiibo_amd64.deb'
+    exec(`xdg-open "${filePath}"`);
   }
 }
 
-function launch() {
-  const location = getDownloadPath();
-  const name = os.type();
+async function main() {
+  const platform = os.platform();
+  const platformKey = PLATFORM_MAP[platform] || 'linux';
 
-  log(`Launching app at ${location}`)
+  log(`${pkg.name} v${pkg.version}`);
+  log(`Platform: ${platform} (${platformKey})`);
 
-  try {
-    if (name === 'Darwin') {
-      powertools.execute(`open "${location}"`)
-        .then(() => {
-          log('Drag the app to your Applications folder to install it');
-        })
-    } else if (name === 'Windows_NT') {
-      powertools.execute(`"${location}"`)
-        .then(() => {
+  // Fetch download URLs from the website's config.json
+  const siteUrl = new URL(pkg.homepage).origin;
+  const configUrl = `${siteUrl}/config.json`;
+  log(`Fetching download info from ${configUrl}...`);
 
-        })
+  const configRes = await fetch(configUrl);
+
+  if (!configRes.ok) {
+    throw new Error(`Failed to fetch config: ${configRes.status} ${configRes.statusText}`);
+  }
+
+  const config = await configRes.json();
+  const downloads = config.download || {};
+  const platformDownloads = downloads[platformKey];
+
+  if (!platformDownloads) {
+    throw new Error(`No downloads available for ${platformKey}`);
+  }
+
+  const url = platformDownloads.universal || platformDownloads.debian || '';
+
+  if (!url) {
+    throw new Error(`No download URL found for ${platformKey}`);
+  }
+
+  log(`Download URL: ${url}`);
+
+  // Download the file
+  const fileName = url.split('/').pop();
+  const filePath = path.join(getDownloadsFolder(), fileName);
+
+  log(`Downloading to ${filePath}...`);
+
+  const downloadRes = await fetch(url);
+
+  if (!downloadRes.ok) {
+    throw new Error(`Download failed: ${downloadRes.status} ${downloadRes.statusText}`);
+  }
+
+  const fileStream = createWriteStream(filePath);
+  await pipeline(downloadRes.body, fileStream);
+
+  log(`Download complete: ${fileName}`);
+
+  // Install and launch
+  if (platform === 'darwin' && fileName.endsWith('.dmg')) {
+    log('Mounting DMG...');
+    const { execSync } = require('child_process');
+    const mountOutput = execSync(`hdiutil attach "${filePath}" -nobrowse`, { encoding: 'utf8' });
+    const mountPoint = mountOutput.split('\t').pop().trim();
+    log(`Mounted at ${mountPoint}`);
+
+    const appName = require('fs').readdirSync(mountPoint).find((f) => f.endsWith('.app'));
+
+    if (appName) {
+      const appSource = path.join(mountPoint, appName);
+      const appDest = path.join('/Applications', appName);
+      log(`Copying ${appName} to /Applications...`);
+      execSync(`cp -R "${appSource}" "${appDest}"`);
+      log('Launching app...');
+      exec(`open "${appDest}"`);
+      log(`Ejecting ${mountPoint}...`);
+      exec(`hdiutil detach "${mountPoint}"`);
     } else {
-      powertools.execute(`sudo apt install "${location}"`)
-        .then(() => {
-          powertools.execute(`restart-manager`).catch(e => {console.error(e)})
-        })
+      log('No .app found in DMG, opening manually...');
+      launchFile(filePath);
     }
-  } catch (e) {
-    error('Application failed to execute:', e);
-    console.log('\n\n\n')
-    log(`Please launch the app manually: ${location}`);
+  } else {
+    launchFile(filePath);
   }
+
+  log('Done!');
 }
 
-function log() {
-  console.log(`[${new Date().toLocaleTimeString()}]`, ...arguments)
-}
-
-function error() {
-  console.error(`[${new Date().toLocaleTimeString()}]`, ...arguments)
-}
+main().catch((err) => {
+  console.error(`[${new Date().toLocaleTimeString()}] Error: ${err.message}`);
+  console.log(`\nVisit ${pkg.homepage} to download manually.`);
+  process.exit(1);
+});
